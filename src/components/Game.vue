@@ -4,22 +4,33 @@
         <div class="game__wins">
             <div class="game__win">
                 <div class="game__win-text">Крестики</div>
-                <div class="game__win-count">0</div>
+                <div class="game__win-count">{{player1.wins}}</div>
             </div>
             <div class="game__win game__win_toe">
                 <div class="game__win-text">Нолики</div>
-                <div class="game__win-count">0</div>
+                <div class="game__win-count">{{player2.wins}}</div>
             </div>
         </div>
+        <div class="game__current-mode">
+            {{ getCurrentMode }}
+        </div>
         <div class="game__cells">
-            <Cell @make-turn="makeTurn" v-for="(cell, index) in cells" :type="cell" :key="index" :index="index" />
+            <Cell @make-turn="makeTurn" :active="isGameRunning" v-for="(cell, index) in cells" :type="cell" :key="index" :index="index" />
         </div>
         <div class="game__turn">
             {{ getText }}
         </div>
         <div v-if="!isGameRunning" class="game__again">
-            <button @click="startGame" class="button">
+            <button @click="restartGame" class="button">
                 Начать снова
+            </button>
+        </div>
+        <div class="game__mode">
+            <button v-if="isSingleMode" @click="changeMode('AI')" class="button">
+                Играть с компьютером
+            </button>
+            <button v-else @click="changeMode()" class="button">
+                Играть с другом
             </button>
         </div>
     </div>
@@ -27,6 +38,8 @@
 
 <script>
     import Cell from "./Cell";
+    import Player from "../actors/Player";
+    import Computer from "../actors/Computer";
 
     export default {
         name: "Game",
@@ -35,18 +48,14 @@
         },
         data() {
             return {
-                gameStatus: 'game',
-                gameResult: '',
-                player1: {
-                    wins: 0,
-                    type: 'x',
-                    name: 'Крестики'
+                game: {
+                    status: 'game',
+                    result: '',
+                    singleMode: true
                 },
-                player2: {
-                    wins: 0,
-                    type: 'o',
-                    name: 'Нолики'
-                },
+                player1: new Player(0, 'x', 'Крестики'),
+                player2: new Player(0, 'o', 'Нолики'),
+                timeout: null,
                 currentPlayer: 1,
                 cells: [
                     '','','',
@@ -62,36 +71,56 @@
         },
         computed: {
             getText() {
-                if (this.gameStatus === 'game') {
+                if (this.getGameStatus() === 'game') {
                     return this.getCurrentType() === 'x' ? 'Ход крестиков' : 'Ход ноликов'
                 }
 
-                return 'Игра окончена. ' + this.gameResult + '!';
+                return 'Игра окончена. ' + this.getGameResult() + '!';
             },
             isGameRunning() {
                 return this.isGame();
+            },
+            isSingleMode() {
+                return this.getMode();
+            },
+            getCurrentMode() {
+                return this.getMode() ? 'Игра с другом' : 'Игра с компьютером'
             }
         },
         methods: {
-            makeTurn(index) {
-                if (this.canTurn()) {
-                    this.cells.splice(index, 1, this.getCurrentType());
+            makeTurn(index, allow = false) {
+                if (this.canTurn() || allow) {
+                    this.setCeil(index, this.getCurrentType());
                     this.checkWinner();
                     this.changeTurn();
                 }
             },
+            makeAITurn() {
+                if (this.aiTurn() && this.isGame()) {
+                    this.timeout = setTimeout(() => {
+                        this.makeTurn(this.getCurrentPlayer().getRandomCeil(this.cells), true);
+                    }, 500);
+                }
+            },
             changeTurn() {
                 this.currentPlayer = this.currentPlayer === 1 ? 2 : 1;
+                this.makeAITurn();
+            },
+            setCeil(index, type) {
+                this.cells.splice(index, 1, type);
+            },
+            aiTurn() {
+                return !this.getMode() && this.currentPlayer === 2;
             },
             canTurn() {
-                return this.gameStatus === 'game'
+                return this.getGameStatus() === 'game' && !this.aiTurn()
             },
             endGame(text) {
-                this.gameStatus = 'end';
-                this.gameResult = text;
+                this.setGameStatus('end');
+                this.setGameResult(text);
             },
             isGame() {
-                return this.gameStatus === 'game';
+                return this.getGameStatus() === 'game';
             },
             checkWinner() {
                 for (let i = 0; i < this.winCombinations.length; i++) {
@@ -106,6 +135,7 @@
 
                     if (win) {
                         const text = `${this.getCurrentName()} победили`;
+                        this.getCurrentPlayer().wins++;
                         this.endGame(text);
                     }
                 }
@@ -123,13 +153,49 @@
             getCurrentName() {
                 return this.getCurrentPlayer().name;
             },
-            startGame() {
-                this.gameStatus = 'game';
+            setGameStatus(status) {
+                this.game.status = status;
+            },
+            getGameStatus() {
+                return this.game.status;
+            },
+            setGameResult(text) {
+                this.game.result = text;
+            },
+            getGameResult() {
+                return this.game.result;
+            },
+            getMode() {
+                return this.game.singleMode;
+            },
+            setMode(mode) {
+                this.game.singleMode = mode;
+            },
+            changeMode(mode) {
+                if (mode === 'AI') {
+                    this.setMode(false);
+                    this.player1 = new Player(0, 'x', 'Крестики');
+                    this.player2 = new Computer(0, 'o', 'Нолики');
+                } else {
+                    this.setMode(true);
+                    this.player1 = new Player(0, 'x', 'Крестики');
+                    this.player2 = new Player(0, 'o', 'Нолики');
+                }
+                this.startGame();
+            },
+            startGame(turn = 1) {
+                clearTimeout(this.timeout);
+                this.setGameStatus('game');
+                this.currentPlayer = turn;
                 this.cells =  [
                     '','','',
                     '','','',
                     '','',''
                 ];
+                this.makeAITurn();
+            },
+            restartGame() {
+                this.startGame(this.currentPlayer)
             }
         }
     }
@@ -182,7 +248,18 @@
             text-align: center;
         }
 
+        &__mode {
+            display: flex;
+            justify-content: center;
+        }
+
+        &__current-mode {
+            text-align: center;
+            margin-bottom: 25px;
+        }
+
         &__again {
+            margin-bottom: 25px;
             display: flex;
             justify-content: center;
         }
