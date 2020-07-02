@@ -4,4 +4,8 @@ export default class {
         this.name = name;
         this.type = type;
     }
+
+    init() {
+
+    }
 }

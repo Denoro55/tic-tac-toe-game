@@ -175,7 +175,7 @@
                 if (mode === 'AI') {
                     this.setMode(false);
                     this.player1 = new Player(0, 'x', 'Крестики');
-                    this.player2 = new Computer(0, 'o', 'Нолики');
+                    this.player2 = new Computer(0, 'o', 'Нолики', this.winCombinations);
                 } else {
                     this.setMode(true);
                     this.player1 = new Player(0, 'x', 'Крестики');
@@ -192,6 +192,7 @@
                     '','','',
                     '','',''
                 ];
+                this.player2.init(this.cells);
                 this.makeAITurn();
             },
             restartGame() {
